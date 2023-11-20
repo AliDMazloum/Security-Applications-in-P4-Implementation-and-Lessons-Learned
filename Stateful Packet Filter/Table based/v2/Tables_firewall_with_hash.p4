@@ -39,7 +39,7 @@ struct tcp_digest_t {
     /******  G L O B A L   I N G R E S S   M E T A D A T A  *********/
     struct my_ingress_metadata_t {
 		bit<9> in_port;
-        bit<11> flow_id;
+        bit<18> flow_id;
         bit<16> icmp_id;
         bit<18> rev_flow_id;
     }
@@ -113,22 +113,38 @@ struct tcp_digest_t {
 
             /*********************Hashing**************************/
 
-                Hash<bit<11>>(HashAlgorithm_t.CRC16) hash;
-                action apply_hash() {
-                    meta.flow_id = hash.get({
+                Hash<bit<18>>(HashAlgorithm_t.CRC16) hash_TCP;
+                action apply_hash_TCP() {
+                    meta.flow_id = hash_TCP.get({
                         hdr.ipv4.src_addr,
                         hdr.ipv4.dst_addr,
-                        hdr.ipv4.protocol,
                         hdr.tcp.src_port,
                         hdr.tcp.dst_port
                                         });
                                     }
 
-                table calc_flow_id {
+                table calc_flow_id_TCP {
                     actions = {
-                        apply_hash;
+                        apply_hash_TCP;
                     }
-                    const default_action = apply_hash();
+                    const default_action = apply_hash_TCP();
+                }
+
+                Hash<bit<18>>(HashAlgorithm_t.CRC16) hash_ICMP;
+                action apply_hash_ICMP() {
+                    meta.flow_id = hash_ICMP.get({
+                        hdr.ipv4.src_addr,
+                        hdr.ipv4.dst_addr,
+                        hdr.icmp.identifier
+
+                                        });
+                                    }
+
+                table calc_flow_id_ICMP {
+                    actions = {
+                        apply_hash_ICMP;
+                    }
+                    const default_action = apply_hash_ICMP();
                 }
             /*********************End Hashing**********************/
 
@@ -182,9 +198,10 @@ struct tcp_digest_t {
 
             table s2c_icmp_filter {
                 key = {
-                    hdr.ipv4.src_addr: exact;
-                    hdr.ipv4.dst_addr: exact;
-                    hdr.icmp.identifier:exact;
+                    // hdr.ipv4.src_addr: exact;
+                    // hdr.ipv4.dst_addr: exact;
+                    // hdr.icmp.identifier:exact;
+                    meta.flow_id:exact;
                 }
                 actions = {
                     notify_control_plane_icmp_s2c;
@@ -210,10 +227,11 @@ struct tcp_digest_t {
 
             table s2c_tcp_filter {
                 key = {
-                    hdr.ipv4.src_addr: exact;
-                    hdr.ipv4.dst_addr: exact;
-                    hdr.tcp.src_port: exact;
-                    hdr.tcp.dst_port: exact;
+                    // hdr.ipv4.src_addr: exact;
+                    // hdr.ipv4.dst_addr: exact;
+                    // hdr.tcp.src_port: exact;
+                    // hdr.tcp.dst_port: exact;
+                    meta.flow_id:exact;
                 }
                 actions = {
                     meter;
@@ -231,6 +249,7 @@ struct tcp_digest_t {
                 
 
                 if(hdr.icmp.isValid()){
+                    calc_flow_id_TCP.apply();
                     if (hdr.icmp.type == 8){
                         // ig_dprsr_md.digest_type = 0;
                         c2s_icmp_filter.apply();
@@ -244,6 +263,7 @@ struct tcp_digest_t {
                 }  
 
                 if(hdr.tcp.isValid()){ 
+                    calc_flow_id_ICMP.apply();
                     if(hdr.tcp.flags == 2){
                         c2s_tcp_filter.apply();
                     }
@@ -297,7 +317,7 @@ struct tcp_digest_t {
     struct my_egress_metadata_t {
         bit<32> packet_hash;
         bit<32> packet_queue_delay;		
-        bit<11> flow_id;
+        bit<18> flow_id;
     }
     /***********************  P A R S E R  **************************/
     parser EgressParser(packet_in        pkt,
