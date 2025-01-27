@@ -1,12 +1,6 @@
 # P4-Security-Applications
 This repository contains the P4 codes of multiple security applications
 
---------------------------------------------------------
-To compile the program:		->	 make compile
-To run the switch daemon:	->	 make run
-To enable the ports: 		->	 make conf_links
---------------------------------------------------------
-
 Steps to run the program:
     1)  make compile                                        // this step compiles the P4 program.
     2)  make run                                            // this step runs the compiled application.
